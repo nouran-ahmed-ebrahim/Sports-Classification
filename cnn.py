@@ -106,10 +106,10 @@ conv_input = input_data(shape=[None, IMG_SIZE, IMG_SIZE, 1], name='input')
 conv1 = conv_2d(conv_input, 32, 5, activation='relu')
 pool1 = max_pool_2d(conv1, 5)
 
-conv2 = conv_2d(pool1, 64, 3, activation='relu')
+conv2 = conv_2d(pool1, 64, 5, activation='relu')
 pool2 = max_pool_2d(conv2, 5)
 
-conv3 = conv_2d(pool2, 128, 3, activation='relu')
+conv3 = conv_2d(pool2, 128, 5, activation='relu')
 pool3 = max_pool_2d(conv3, 5)
 
 conv4 = conv_2d(pool3, 64, 5, activation='relu')
@@ -118,7 +118,7 @@ pool4 = max_pool_2d(conv4, 5)
 conv5 = conv_2d(pool4, 32, 5, activation='relu')
 pool5 = max_pool_2d(conv5, 5)
 
-fully_layer = fully_connected(pool3, 1024, activation='relu')
+fully_layer = fully_connected(pool5, 1024, activation='relu')
 fully_layer = dropout(fully_layer, 0.5)
 
 cnn_layers = fully_connected(fully_layer, 6, activation='softmax')
