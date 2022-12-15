@@ -14,7 +14,7 @@ from tflearn.layers.estimator import regression
 
 TRAIN_DIR = 'Train'
 TEST_DIR = 'Test'
-IMG_SIZE = 225
+IMG_SIZE = 300
 LR = 0.001
 MODEL_NAME = 'sport_classification'
 sports = {"Basketball": [1, 0, 0, 0, 0, 0], "Football": [0, 1, 0, 0, 0, 0], "Rowing": [0, 0, 1, 0, 0, 0]
@@ -35,7 +35,7 @@ def create_train_data():
         img_data = cv2.imread(path, 0)
         img_data = cv2.resize(img_data, (IMG_SIZE, IMG_SIZE))
         img_label = create_label(img)
-        training_data.append([np.array(img_data), img_label])
+        # training_data.append([np.array(img_data), img_label])
         imgs = preprocessing(img_data)
         for image in imgs:
             training_data.append([np.array(image), img_label])
@@ -68,9 +68,10 @@ def predict_test_result():
     sample_idx = 0
     test_prediction = []
     for img_name in tqdm(os.listdir(TEST_DIR)):
-        sample_prediction = predictions[sample_idx]
+        sample_prediction = test_labels[sample_idx]
         test_prediction.append([img_name, sample_prediction])
-        return test_prediction
+        sample_idx += 1
+    return test_prediction
 
 
 if os.path.exists('train_data.npy'):  # If you have already created the dataset:
@@ -93,7 +94,7 @@ test = test_data
 X_train = np.array([i[0] for i in train]).reshape(-1, IMG_SIZE, IMG_SIZE, 1)
 y_train = [i[1] for i in train]
 
-X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.33, random_state=42)
+X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.15, random_state=42)
 
 X_val = X_val.reshape(-1, IMG_SIZE, IMG_SIZE, 1)
 X_train = X_train.reshape(-1, IMG_SIZE, IMG_SIZE, 1)
@@ -131,13 +132,13 @@ print(X_train.shape)
 if os.path.exists('model.tfl.meta'):
     model.load('./model.tfl')
 else:
-    model.fit({'input': X_train}, {'targets': y_train}, n_epoch=10,
+    model.fit({'input': X_train}, {'targets': y_train}, n_epoch=20,
               validation_set=({'input': X_val}, {'targets': y_val}),
               snapshot_step=500, show_metric=True, run_id=MODEL_NAME)
     model.save('model.tfl')
 
 
-filename = 'Test Prediction'
+filename = 'Test Prediction.csv'
 fields = ['image_name', 'label']
 test_prediction = predict_test_result()
 # writing to csv file
@@ -150,4 +151,4 @@ with open(filename, 'w') as csvfile:
 
     # writing the data rows
     csvwriter.writerows(test_prediction)
-plt.show()
+
