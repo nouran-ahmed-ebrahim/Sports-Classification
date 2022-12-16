@@ -160,3 +160,7 @@ last models/mod 1 (origenal & 2 pre)/Test Prediction
 last models/mod 1 (origenal & 2 pre)/model.tfl.meta
 last models/mod 1 (origenal & 2 pre)/model.tfl.index
 last models/mod 1 (origenal & 2 pre)/model.tfl.data-00000-of-00001
+*.data-00000-of-00001
+*.index
+*.index
+*.meta
