@@ -2,10 +2,12 @@ import cv2
 import numpy as np
 import os
 from random import shuffle
+
+import tflearn
 from tqdm import tqdm
 import tensorflow as tf
 import matplotlib.pyplot as plt
-import tflearn
+# import tflearn
 import csv
 from sklearn.model_selection import train_test_split
 from tflearn.layers.conv import conv_2d, max_pool_2d
@@ -14,7 +16,7 @@ from tflearn.layers.estimator import regression
 
 TRAIN_DIR = 'Train'
 TEST_DIR = 'Test'
-IMG_SIZE = 225
+IMG_SIZE = 250
 LR = 0.001
 MODEL_NAME = 'sport_classification'
 sports = {"Basketball": [1, 0, 0, 0, 0, 0], "Football": [0, 1, 0, 0, 0, 0], "Rowing": [0, 0, 1, 0, 0, 0]
@@ -36,16 +38,16 @@ def create_train_data():
         img_data = cv2.resize(img_data, (IMG_SIZE, IMG_SIZE))
         img_label = create_label(img)
         training_data.append([np.array(img_data), img_label])
-        imgs = preprocessing(img_data)
-        for image in imgs:
-            training_data.append([np.array(image), img_label])
+        # imgs = preprocessing(img_data)
+        # for image in imgs:
+        #     training_data.append([np.array(image), img_label])
     shuffle(training_data)
     np.save('train_data.npy', training_data)
     return training_data
 
 
 def preprocessing(img_data):
-    norm_image = cv2.equalizeHist(img_data)
+    norm_image = (img_data - np.min(img_data)) / (np.max(img_data) - np.min(img_data))
     rotate_image = cv2.rotate(img_data, cv2.ROTATE_180)
 
     return norm_image, rotate_image#, flip_img
@@ -94,7 +96,7 @@ test = test_data
 X_train = np.array([i[0] for i in train]).reshape(-1, IMG_SIZE, IMG_SIZE, 1)
 y_train = [i[1] for i in train]
 
-X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=42)
+X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.15, random_state=42)
 
 X_val = X_val.reshape(-1, IMG_SIZE, IMG_SIZE, 1)
 X_train = X_train.reshape(-1, IMG_SIZE, IMG_SIZE, 1)
@@ -104,22 +106,34 @@ X_test = np.array(test).reshape(-1, IMG_SIZE, IMG_SIZE, 1)
 tf.compat.v1.reset_default_graph()
 
 conv_input = input_data(shape=[None, IMG_SIZE, IMG_SIZE, 1], name='input')
-conv1 = conv_2d(conv_input, 32, 5, activation='relu')
-pool1 = max_pool_2d(conv1, 5)
+pool0 = max_pool_2d(conv_input, 11, strides=2)
 
-conv2 = conv_2d(pool1, 64, 5, activation='relu')
-pool2 = max_pool_2d(conv2, 5)
+conv1 = conv_2d(pool0, 8, 3, activation='relu')
+conv2 = conv_2d(conv1, 8, 3, activation='relu')
+pool1 = max_pool_2d(conv2, 56, strides=2)
 
-conv3 = conv_2d(pool2, 128, 5, activation='relu')
-pool3 = max_pool_2d(conv3, 5)
+conv3 = conv_2d(pool1, 16, 3, activation='relu')
+conv4 = conv_2d(conv3, 16, 3, activation='relu')
+pool2 = max_pool_2d(conv4, 28, strides=2)
 
-conv4 = conv_2d(pool3, 64, 5, activation='relu')
-pool4 = max_pool_2d(conv4, 5)
+conv5 = conv_2d(pool2, 32, 3, activation='relu')
+conv6 = conv_2d(conv5, 32, 3, activation='relu')
+conv7 = conv_2d(conv6, 32, 3, activation='relu')
+pool3 = max_pool_2d(conv7, 14, strides=2)
 
-conv5 = conv_2d(pool4, 32, 5, activation='relu')
-pool5 = max_pool_2d(conv5, 5)
+conv9 = conv_2d(pool3, 64, 3, activation='relu')
+conv10 = conv_2d(conv9, 64, 3, activation='relu')
+conv11 = conv_2d(conv10, 64, 3, activation='relu')
+pool4 = max_pool_2d(conv11, 7, strides=2)
 
-fully_layer = fully_connected(pool5, 1024, activation='relu')
+conv13 = conv_2d(pool4, 64, 3, activation='relu')
+conv14 = conv_2d(conv13, 64, 3, activation='relu')
+conv15 = conv_2d(conv14, 64, 3, activation='relu')
+pool5 = max_pool_2d(conv15, 3, strides=2)
+
+
+fully_layer = fully_connected(pool4, 1028, activation='relu')
+fully_layer = fully_connected(fully_layer, 1028, activation='relu')
 fully_layer = dropout(fully_layer, 0.5)
 
 cnn_layers = fully_connected(fully_layer, 6, activation='softmax')
@@ -132,7 +146,7 @@ model = tflearn.DNN(cnn_layers, tensorboard_dir='log', tensorboard_verbose=3)
 if os.path.exists('model.tfl.meta'):
     model.load('./model.tfl')
 else:
-    model.fit({'input': X_train}, {'targets': y_train}, n_epoch=20,
+    model.fit({'input': X_train}, {'targets': y_train}, n_epoch=25,
               validation_set=({'input': X_val}, {'targets': y_val}),
               snapshot_step=500, show_metric=True, run_id=MODEL_NAME)
     model.save('model.tfl')
