@@ -16,6 +16,7 @@ from tflearn.layers.estimator import regression
 
 TRAIN_DIR = 'Train'
 TEST_DIR = 'Test'
+Validation_DIR = 'Validation'
 IMG_SIZE = 225
 LR = 0.001
 NUM_OF_CHANNELS = 3
@@ -36,10 +37,10 @@ def create_train_data():
     for img in tqdm(os.listdir(TRAIN_DIR)):
         path = os.path.join(TRAIN_DIR, img)
         img_data = cv2.imread(path, 1)
-        img_data = cv2.cvtColor(img_data, cv2.COLOR_BGR2RGB)
+#         img_data = cv2.cvtColor(img_data, cv2.COLOR_BGR2RGB)
         img_data = cv2.resize(img_data, (IMG_SIZE, IMG_SIZE))
         img_label = create_label(img)
-        training_data.append([np.array(img_data), img_label])
+       # training_data.append([np.array(img_data), img_label])
         imgs = preprocessing(img_data)
         for image in imgs:
             training_data.append([np.array(image), img_label])
@@ -49,13 +50,9 @@ def create_train_data():
 
 
 def preprocessing(img_data):
-    norm_image = img_data
-    norm_image[:, :, 0] = cv2.equalizeHist(img_data[:, :, 0])
-    norm_image[:, :, 1] = cv2.equalizeHist(img_data[:, :, 1])
-    norm_image[:, :, 2] = cv2.equalizeHist(img_data[:, :, 2])
     rotate_image = cv2.rotate(img_data, cv2.ROTATE_180)
-
-    return norm_image, rotate_image
+    norm_image = (img_data-np.min(img_data)) / (np.max(img_data)- np.min(img_data))
+    return [norm_image]#, rotate_image
 
 
 def create_test_data():
@@ -64,7 +61,9 @@ def create_test_data():
         path = os.path.join(TEST_DIR, img)
         img_data = cv2.imread(path, 1)
         img_data = cv2.resize(img_data, (IMG_SIZE, IMG_SIZE))
-        testing_data.append([np.array(img_data)])
+        img_data = preprocessing(img_data)[0]
+        testing_data.append([np.array(img_data), img])
+    shuffle(testing_data)
     np.save('test_data.npy', testing_data)
     return testing_data
 
@@ -74,9 +73,9 @@ def predict_test_result():
     test_labels = np.argmax(predictions, axis=1)
     sample_idx = 0
     test_prediction = []
-    for img_name in tqdm(os.listdir(TEST_DIR)):
+    for img_name in test_imgs_names:
         sample_prediction = test_labels[sample_idx]
-        test_prediction.append([sample_prediction])
+        test_prediction.append([img_name,sample_prediction])
         sample_idx += 1
     return test_prediction
 
@@ -93,57 +92,48 @@ if os.path.exists('test_data.npy'):
 else:
     test_data = create_test_data()
 
-# print(train_data.shape)
-# # print(test_data.shape)
+
 train = train_data
 test = test_data
 
 X_train = np.array([i[0] for i in train]).reshape(-1, IMG_SIZE, IMG_SIZE, NUM_OF_CHANNELS)
 y_train = [i[1] for i in train]
 
-X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.1, random_state=42)
 
-X_val = X_val.reshape(-1, IMG_SIZE, IMG_SIZE, NUM_OF_CHANNELS)
-X_train = X_train.reshape(-1, IMG_SIZE, IMG_SIZE, NUM_OF_CHANNELS)
+# X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.1, random_state=42)
+#
+# X_val = X_val.reshape(-1, IMG_SIZE, IMG_SIZE, NUM_OF_CHANNELS)
+# X_train = X_train.reshape(-1, IMG_SIZE, IMG_SIZE, NUM_OF_CHANNELS)
 
-X_test = np.array(test).reshape(-1, IMG_SIZE, IMG_SIZE, NUM_OF_CHANNELS)
+X_test = np.array([i[0] for i in test]).reshape(-1, IMG_SIZE, IMG_SIZE, NUM_OF_CHANNELS)
+test_imgs_names = [i[1] for i in test]
 
 tf.compat.v1.reset_default_graph()
-
 conv_input = input_data(shape=[None, IMG_SIZE, IMG_SIZE, NUM_OF_CHANNELS], name='input')
-pool0 = max_pool_2d(conv_input, 7)
-conv1 = conv_2d(pool0, 16, 5, activation='relu')
-conv2 = conv_2d(conv1, 32, 5, activation='relu')
-pool2 = max_pool_2d(conv2, 5)
-
-conv3 = conv_2d(pool2, 64, 3, activation='relu')
-pool3 = max_pool_2d(conv3, 5)
-
-conv4 = conv_2d(pool3, 64, 3, activation='relu')
-conv5 = conv_2d(conv4, 32, 3, activation='relu')
-pool4 = max_pool_2d(conv5, 5)
-
-fully_layer = fully_connected(pool4, 1028, activation='relu')
+conv1 = conv_2d(conv_input, 96, 11, strides= 4, activation='relu')
+pool1 = max_pool_2d(conv1,3, strides= 2)
+conv2 = conv_2d(pool1,128, 5, strides= 1, activation='relu')
+pool2 = max_pool_2d(conv2,3, strides= 2)
+conv3 = conv_2d(pool2, 256, 3, activation='relu')
+conv4 = conv_2d(conv3, 256, 3, activation='relu')
+conv4 = conv_2d(conv4, 128, 3, activation='relu')
+pool5 = max_pool_2d(conv4,3, strides= 2)
+fully_layer = fully_connected(pool5, 1000, activation='relu')
 fully_layer = dropout(fully_layer, 0.5)
-fully_layer = fully_connected(fully_layer, 32, activation='relu')
-
 cnn_layers = fully_connected(fully_layer, 6, activation='softmax')
-
 cnn_layers = regression(cnn_layers, optimizer='adam', learning_rate=LR, loss='categorical_crossentropy', name='targets')
 model = tflearn.DNN(cnn_layers, tensorboard_dir='log', tensorboard_verbose=3)
-# print(X_train.shape)
 
 
 if os.path.exists('model.tfl.meta'):
     model.load('./model.tfl')
 else:
-    model.fit({'input': X_train}, {'targets': y_train}, n_epoch=40,
-              validation_set=({'input': X_val}, {'targets': y_val}),
+    model.fit({'input': X_train}, {'targets': y_train}, n_epoch=150,
               snapshot_step=500, show_metric=True, run_id=MODEL_NAME)
     model.save('model.tfl')
 
 
-filename = 'Test Prediction.csv'
+filename = 'submission.csv'
 fields = ['image_name', 'label']
 test_prediction = predict_test_result()
 # writing to csv file
