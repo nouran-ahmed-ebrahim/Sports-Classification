@@ -16,7 +16,7 @@ from tflearn.layers.estimator import regression
 
 TRAIN_DIR = 'Train'
 TEST_DIR = 'Test'
-IMG_SIZE = 400
+IMG_SIZE = 200
 LR = 0.001
 MODEL_NAME = 'sport_classification'
 sports = {"Basketball": [1, 0, 0, 0, 0, 0], "Football": [0, 1, 0, 0, 0, 0], "Rowing": [0, 0, 1, 0, 0, 0]
@@ -37,7 +37,7 @@ def create_train_data():
         img_data = cv2.imread(path, 0)
         img_data = cv2.resize(img_data, (IMG_SIZE, IMG_SIZE))
         img_label = create_label(img)
-        training_data.append([np.array(img_data), img_label])
+        # training_data.append([np.array(img_data), img_label])
         imgs = preprocessing(img_data)
         for image in imgs:
             training_data.append([np.array(image), img_label])
@@ -47,10 +47,9 @@ def create_train_data():
 
 
 def preprocessing(img_data):
-    norm_image = (img_data - np.min(img_data)) / (np.max(img_data) - np.min(img_data))
     rotate_image = cv2.rotate(img_data, cv2.ROTATE_180)
-
-    return norm_image, rotate_image#, flip_img
+    norm_image = (img_data - np.min(img_data)) / (np.max(img_data) - np.min(img_data))
+    return [norm_image]  # , rotate_image
 
 
 def create_test_data():
@@ -59,7 +58,8 @@ def create_test_data():
         path = os.path.join(TEST_DIR, img)
         img_data = cv2.imread(path, 0)
         img_data = cv2.resize(img_data, (IMG_SIZE, IMG_SIZE))
-        testing_data.append([np.array(img_data)])
+        testing_data.append([np.array(img_data), img])
+    shuffle(testing_data)
     np.save('test_data.npy', testing_data)
     return testing_data
 
@@ -69,9 +69,9 @@ def predict_test_result():
     test_labels = np.argmax(predictions, axis=1)
     sample_idx = 0
     test_prediction = []
-    for img_name in tqdm(os.listdir(TEST_DIR)):
+    for img_name in test_imgs_names:
         sample_prediction = test_labels[sample_idx]
-        test_prediction.append([sample_prediction])
+        test_prediction.append([img_name, sample_prediction])
         sample_idx += 1
     return test_prediction
 
@@ -88,20 +88,15 @@ if os.path.exists('test_data.npy'):
 else:
     test_data = create_test_data()
 
-# print(train_data.shape)
-# print(test_data.shape)
 train = train_data
 test = test_data
 
 X_train = np.array([i[0] for i in train]).reshape(-1, IMG_SIZE, IMG_SIZE, 1)
 y_train = [i[1] for i in train]
 
-X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.15, random_state=42)
+X_test = np.array([i[0] for i in test]).reshape(-1, IMG_SIZE, IMG_SIZE, 1)
+test_imgs_names = [i[1] for i in test]
 
-X_val = X_val.reshape(-1, IMG_SIZE, IMG_SIZE, 1)
-X_train = X_train.reshape(-1, IMG_SIZE, IMG_SIZE, 1)
-
-X_test = np.array(test).reshape(-1, IMG_SIZE, IMG_SIZE, 1)
 
 tf.compat.v1.reset_default_graph()
 
@@ -132,23 +127,20 @@ model = tflearn.DNN(cnn_layers, tensorboard_dir='log', tensorboard_verbose=3)
 if os.path.exists('model.tfl.meta'):
     model.load('./model.tfl')
 else:
-    model.fit({'input': X_train}, {'targets': y_train}, n_epoch=40,
-              validation_set=({'input': X_val}, {'targets': y_val}),
+    model.fit({'input': X_train}, {'targets': y_train}, n_epoch=150,
               snapshot_step=500, show_metric=True, run_id=MODEL_NAME)
     model.save('model.tfl')
 
 
-filename = 'Test Prediction.csv'
+filename = 'submission.csv'
 fields = ['image_name', 'label']
 test_prediction = predict_test_result()
 # writing to csv file
 with open(filename, 'w',  newline='') as csvfile:
     # creating a csv writer object
     csvwriter = csv.writer(csvfile)
-
     # writing the fields
     csvwriter.writerow(fields)
-
     # writing the data rows
     csvwriter.writerows(test_prediction)
 
